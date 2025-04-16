@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IP Camera Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            max-width: 100%;
+            margin: 0 auto;
+            height: calc(100vh - 220px);
+            overflow-y: auto;
+        }
+        .container.maximized {
+            display: block;
+            height: calc(100vh - 220px);
+        }
+        .cam-container {
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+        .cam-container.maximized {
+            width: 100%;
+            height: 100%;
+        }
+        .cam-header {
+            padding: 10px;
+            background-color: #333;
+            color: white;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cam-frame {
+            width: 100%;
+            height: 240px;
+            border: none;
+            display: block;
+        }
+        .cam-frame.maximized {
+            height: calc(100% - 40px);
+        }
+        .error {
+            background-color: #ffe6e6;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+            color: #333;
+        }
+        .controls {
+            max-width: 100%;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .input-section {
+            max-width: 100%;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .pagination {
+            margin-top: 10px;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .maximize-btn, .restore-btn {
+            padding: 5px 10px;
+            background-color: #28a745;
+        }
+        .maximize-btn:hover, .restore-btn:hover {
+            background-color: #218838;
+        }
+        textarea {
+            width: 100%;
+            max-width: 600px;
+            height: 60px;
+            margin: 10px 0;
+            padding: 8px;
+            font-size: 14px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .error-message {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="input-section">
+        <textarea id="cameraInput" placeholder='Paste your camera URLs as a JSON array, e.g. ["http://example1:80", "http://example2:81"]'></textarea>
+        <button id="submitButton">Submit Cameras</button>
+        <div id="errorMessage" class="error-message">Invalid input. Please provide a valid JSON array of URLs.</div>
+    </div>
+    <div class="controls">
+        <button id="loadButton" style="display: none;">Load Cameras</button>
+        <div class="pagination" id="pagination"></div>
+    </div>
+    <div class="container" id="camContainer"></div>
+
+    <script>
+        let camUrls = [];
+        const camsPerPage = 8;
+        let currentPage = 1;
+        let isLoaded = false;
+        let maximizedCam = null;
+
+        const container = document.getElementById('camContainer');
+        const pagination = document.getElementById('pagination');
+        const loadButton = document.getElementById('loadButton');
+        const cameraInput = document.getElementById('cameraInput');
+        const submitButton = document.getElementById('submitButton');
+        const errorMessage = document.getElementById('errorMessage');
+
+        function createCamElement(url) {
+            const camDiv = document.createElement('div');
+            camDiv.className = 'cam-container';
+            camDiv.dataset.url = url;
+
+            const header = document.createElement('div');
+            header.className = 'cam-header';
+
+            const urlSpan = document.createElement('span');
+            urlSpan.textContent = url;
+            header.appendChild(urlSpan);
+
+            const maximizeBtn = document.createElement('button');
+            maximizeBtn.className = 'maximize-btn';
+            maximizeBtn.textContent = 'Maximize';
+            maximizeBtn.onclick = () => maximizeCam(camDiv);
+            header.appendChild(maximizeBtn);
+
+            const restoreBtn = document.createElement('button');
+            restoreBtn.className = 'restore-btn';
+            restoreBtn.textContent = 'Restore';
+            restoreBtn.style.display = 'none';
+            restoreBtn.onclick = () => restoreCam();
+            header.appendChild(restoreBtn);
+
+            camDiv.appendChild(header);
+
+            const iframe = document.createElement('iframe');
+            iframe.className = 'cam-frame';
+            iframe.src = url;
+            iframe.title = `Camera at ${url}`;
+            iframe.onerror = () => {
+                iframe.remove();
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.textContent = 'Failed to load camera feed';
+                camDiv.appendChild(errorDiv);
+            };
+            camDiv.appendChild(iframe);
+
+            return camDiv;
+        }
+
+        function maximizeCam(camDiv) {
+            if (maximizedCam) return;
+
+            maximizedCam = camDiv;
+            container.classList.add('maximized');
+
+            Array.from(container.children).forEach(child => {
+                if (child !== camDiv) child.style.display = 'none';
+            });
+
+            camDiv.classList.add('maximized');
+            camDiv.querySelector('.cam-frame').classList.add('maximized');
+            camDiv.querySelector('.maximize-btn').style.display = 'none';
+            camDiv.querySelector('.restore-btn').style.display = 'inline-block';
+
+            pagination.style.display = 'none';
+            loadButton.style.display = 'none';
+        }
+
+        function restoreCam() {
+            if (!maximizedCam) return;
+
+            container.classList.remove('maximized');
+
+            Array.from(container.children).forEach(child => {
+                child.style.display = 'block';
+            });
+
+            maximizedCam.classList.remove('maximized');
+            maximizedCam.querySelector('.cam-frame').classList.remove('maximized');
+            maximizedCam.querySelector('.maximize-btn').style.display = 'inline-block';
+            maximizedCam.querySelector('.restore-btn').style.display = 'none';
+
+            maximizedCam = null;
+
+            pagination.style.display = 'block';
+            loadButton.style.display = 'inline-block';
+        }
+
+        function renderCams(page) {
+            container.innerHTML = '';
+            const start = (page - 1) * camsPerPage;
+            const end = start + camsPerPage;
+            const pageCams = camUrls.slice(start, end);
+
+            pageCams.forEach(url => {
+                const camElement = createCamElement(url);
+                container.appendChild(camElement);
+            });
+
+            renderPagination();
+        }
+
+        function renderPagination() {
+            pagination.innerHTML = '';
+            const totalPages = Math.ceil(camUrls.length / camsPerPage);
+
+            const prevButton = document.createElement('button');
+            prevButton.textContent = 'Previous';
+            prevButton.disabled = currentPage === 1;
+            prevButton.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderCams(currentPage);
+                }
+            };
+            pagination.appendChild(prevButton);
+
+            for (let i = 1; i <= totalPages; i++) {
+                const pageButton = document.createElement('button');
+                pageButton.textContent = i;
+                pageButton.disabled = i === currentPage;
+                pageButton.onclick = () => {
+                    currentPage = i;
+                    renderCams(currentPage);
+                };
+                pagination.appendChild(pageButton);
+            }
+
+            const nextButton = document.createElement('button');
+            nextButton.textContent = 'Next';
+            nextButton.disabled = currentPage === totalPages;
+            nextButton.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderCams(currentPage);
+                }
+            };
+            pagination.appendChild(nextButton);
+        }
+
+        submitButton.onclick = () => {
+            try {
+                const input = cameraInput.value.trim();
+                if (!input) {
+                    errorMessage.style.display = 'block';
+                    return;
+                }
+                const parsedUrls = JSON.parse(input);
+                if (!Array.isArray(parsedUrls) || !parsedUrls.every(url => typeof url === 'string' && url.startsWith('http'))) {
+                    throw new Error('Invalid array of URLs');
+                }
+                camUrls = parsedUrls;
+                errorMessage.style.display = 'none';
+                loadButton.style.display = 'inline-block';
+                currentPage = 1;
+                isLoaded = false;
+                loadButton.textContent = 'Load Cameras';
+                container.innerHTML = '';
+                renderPagination();
+            } catch (e) {
+                errorMessage.style.display = 'block';
+            }
+        };
+
+        loadButton.onclick = () => {
+            if (!isLoaded) {
+                isLoaded = true;
+                loadButton.textContent = 'Reload Cameras';
+                renderCams(currentPage);
+            } else {
+                container.innerHTML = '';
+                maximizedCam = null;
+                renderCams(currentPage);
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            if (!maximizedCam) {
+                renderCams(currentPage);
+            }
+        });
+    </script>
+</body>
+</html>
