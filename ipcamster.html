@@ -44,21 +44,43 @@
             justify-content: space-between;
             align-items: center;
         }
-        .cam-frame {
+        .cam-frame, .cam-image {
             width: 100%;
             height: 240px;
             border: none;
             display: block;
+            object-fit: contain;
         }
-        .cam-frame.maximized {
+        .cam-frame.maximized, .cam-image.maximized {
             height: calc(100% - 40px);
         }
-        .error {
+        .error, .download-container {
             background-color: #ffe6e6;
             padding: 10px;
             text-align: center;
             font-size: 14px;
             color: #333;
+            height: 240px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .download-container.maximized {
+            height: calc(100% - 40px);
+        }
+        .download-btn {
+            padding: 8px 16px;
+            margin-top: 10px;
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .download-btn:hover {
+            background-color: #138496;
         }
         .controls {
             max-width: 100%;
@@ -197,18 +219,56 @@
 
             camDiv.appendChild(header);
 
-            const iframe = document.createElement('iframe');
-            iframe.className = 'cam-frame';
-            iframe.src = url;
-            iframe.title = `Camera at ${url}`;
-            iframe.onerror = () => {
-                iframe.remove();
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error';
-                errorDiv.textContent = 'Failed to load camera feed';
-                camDiv.appendChild(errorDiv);
-            };
-            camDiv.appendChild(iframe);
+            // Check if the URL is a displayable image
+            const isImage = url.toLowerCase().endsWith('.jpg') ||
+                           url.toLowerCase().endsWith('.jpeg') ||
+                           url.toLowerCase().endsWith('.png') ||
+                           url.toLowerCase().endsWith('.gif') ||
+                           url.toLowerCase().endsWith('.bmp') ||
+                           url.toLowerCase().endsWith('.webp');
+
+            if (isImage) {
+                const img = document.createElement('img');
+                img.className = 'cam-image';
+                img.src = url;
+                img.alt = `Camera image at ${url}`;
+                img.onerror = () => {
+                    img.remove();
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error';
+                    errorDiv.textContent = 'Failed to load camera image';
+                    camDiv.appendChild(errorDiv);
+                };
+                camDiv.appendChild(img);
+            } else {
+                // Try to load as an iframe (for potential live feeds)
+                const iframe = document.createElement('iframe');
+                iframe.className = 'cam-frame';
+                iframe.src = url;
+                iframe.title = `Camera at ${url}`;
+                iframe.onerror = () => {
+                    iframe.remove();
+                    // If iframe fails, show a download button instead
+                    const downloadDiv = document.createElement('div');
+                    downloadDiv.className = 'download-container';
+                    downloadDiv.textContent = 'Content not displayable. Download the file instead:';
+
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'download-btn';
+                    downloadBtn.textContent = 'Download';
+                    downloadBtn.onclick = () => {
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = url.split('/').pop() || 'file';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    };
+                    downloadDiv.appendChild(downloadBtn);
+                    camDiv.appendChild(downloadDiv);
+                };
+                camDiv.appendChild(iframe);
+            }
 
             return camDiv;
         }
@@ -224,7 +284,10 @@
             });
 
             camDiv.classList.add('maximized');
-            camDiv.querySelector('.cam-frame').classList.add('maximized');
+            const camFrame = camDiv.querySelector('.cam-frame') ||
+                           camDiv.querySelector('.cam-image') ||
+                           camDiv.querySelector('.download-container');
+            if (camFrame) camFrame.classList.add('maximized');
             camDiv.querySelector('.maximize-btn').style.display = 'none';
             camDiv.querySelector('.restore-btn').style.display = 'inline-block';
 
@@ -242,7 +305,10 @@
             });
 
             maximizedCam.classList.remove('maximized');
-            maximizedCam.querySelector('.cam-frame').classList.remove('maximized');
+            const camFrame = maximizedCam.querySelector('.cam-frame') ||
+                           maximizedCam.querySelector('.cam-image') ||
+                           maximizedCam.querySelector('.download-container');
+            if (camFrame) camFrame.classList.remove('maximized');
             maximizedCam.querySelector('.maximize-btn').style.display = 'inline-block';
             maximizedCam.querySelector('.restore-btn').style.display = 'none';
 
