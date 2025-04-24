@@ -151,13 +151,13 @@
 
             const urlSpan = document.createElement('span');
             urlSpan.textContent = url;
-            header.appendChild(urlSpan);
 
             const maximizeBtn = document.createElement('button');
             maximizeBtn.className = 'maximize-btn';
             maximizeBtn.textContent = 'Maximize';
             maximizeBtn.onclick = () => maximizeCam(camDiv);
             header.appendChild(maximizeBtn);
+            header.appendChild(urlSpan);
 
             const restoreBtn = document.createElement('button');
             restoreBtn.className = 'restore-btn';
