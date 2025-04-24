@@ -141,6 +141,35 @@
         const submitButton = document.getElementById('submitButton');
         const errorMessage = document.getElementById('errorMessage');
 
+        // Load saved data on page load
+        function loadSavedData() {
+            const savedUrls = localStorage.getItem('cameraUrls');
+            const savedPage = localStorage.getItem('currentPage');
+
+            if (savedUrls) {
+                try {
+                    const parsedUrls = JSON.parse(savedUrls);
+                    if (Array.isArray(parsedUrls) && parsedUrls.every(url => typeof url === 'string' && url.startsWith('http'))) {
+                        camUrls = parsedUrls;
+                        cameraInput.value = JSON.stringify(camUrls);
+                        loadButton.style.display = 'inline-block';
+                        renderPagination();
+                    } else {
+                        localStorage.removeItem('cameraUrls');
+                    }
+                } catch (e) {
+                    localStorage.removeItem('cameraUrls');
+                }
+            }
+
+            if (savedPage) {
+                const pageNum = parseInt(savedPage);
+                if (!isNaN(pageNum) && pageNum > 0) {
+                    currentPage = pageNum;
+                }
+            }
+        }
+
         function createCamElement(url) {
             const camDiv = document.createElement('div');
             camDiv.className = 'cam-container';
@@ -247,6 +276,7 @@
             prevButton.onclick = () => {
                 if (currentPage > 1) {
                     currentPage--;
+                    localStorage.setItem('currentPage', currentPage);
                     renderCams(currentPage);
                 }
             };
@@ -258,6 +288,7 @@
                 pageButton.disabled = i === currentPage;
                 pageButton.onclick = () => {
                     currentPage = i;
+                    localStorage.setItem('currentPage', currentPage);
                     renderCams(currentPage);
                 };
                 pagination.appendChild(pageButton);
@@ -269,6 +300,7 @@
             nextButton.onclick = () => {
                 if (currentPage < totalPages) {
                     currentPage++;
+                    localStorage.setItem('currentPage', currentPage);
                     renderCams(currentPage);
                 }
             };
@@ -280,6 +312,8 @@
                 const input = cameraInput.value.trim();
                 if (!input) {
                     errorMessage.style.display = 'block';
+                    localStorage.removeItem('cameraUrls');
+                    camUrls = [];
                     return;
                 }
                 const parsedUrls = JSON.parse(input);
@@ -287,15 +321,19 @@
                     throw new Error('Invalid array of URLs');
                 }
                 camUrls = parsedUrls;
+                localStorage.setItem('cameraUrls', JSON.stringify(camUrls));
                 errorMessage.style.display = 'none';
                 loadButton.style.display = 'inline-block';
                 currentPage = 1;
+                localStorage.setItem('currentPage', currentPage);
                 isLoaded = false;
                 loadButton.textContent = 'Load Cameras';
                 container.innerHTML = '';
                 renderPagination();
             } catch (e) {
                 errorMessage.style.display = 'block';
+                localStorage.removeItem('cameraUrls');
+                camUrls = [];
             }
         };
 
@@ -316,6 +354,9 @@
                 renderCams(currentPage);
             }
         });
+
+        // Initialize with saved data
+        loadSavedData();
     </script>
 </body>
 </html>
