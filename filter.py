@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime
 
 def write_to_file(matching_lines, timecode, substring, part_number):
@@ -61,5 +62,11 @@ def process_file(input_file, substring, max_lines_per_file=20000):
 
 if __name__ == "__main__":
     input_file = "data.txt"
-    substring = ".pdf"
+    # Default substring is .jpg
+    substring = ".jpg"
+
+    # Check for command-line argument
+    if len(sys.argv) > 1:
+        substring = sys.argv[1]
+
     process_file(input_file, substring)

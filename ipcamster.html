@@ -44,17 +44,17 @@
             justify-content: space-between;
             align-items: center;
         }
-        .cam-frame, .cam-image {
+        .cam-frame, .cam-image, .cam-video {
             width: 100%;
-            height: 200px; /* Reduced height to make space for the download button */
+            height: 200px;
             border: none;
             display: block;
             object-fit: contain;
         }
-        .cam-frame.maximized, .cam-image.maximized {
-            height: calc(100% - 80px); /* Adjusted for the download button in maximized view */
+        .cam-frame.maximized, .cam-image.maximized, .cam-video.maximized {
+            height: calc(100% - 40px);
         }
-        .error, .download-container {
+        .error {
             background-color: #ffe6e6;
             padding: 10px;
             text-align: center;
@@ -66,33 +66,8 @@
             justify-content: center;
             align-items: center;
         }
-        .download-container.maximized {
-            height: calc(100% - 80px);
-        }
-        .download-btn, .download-all-btn, .generate-urls-btn {
-            padding: 8px 16px;
-            margin-top: 10px;
-            background-color: #17a2b8;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .download-btn:hover, .download-all-btn:hover, .generate-urls-btn:hover {
-            background-color: #138496;
-        }
-        .download-all-btn, .generate-urls-btn {
-            margin-left: 10px;
-            margin-top: 0;
-        }
-        .start-page-input {
-            min-width: 80px;
-            padding: 8px;
-            margin-left: 10px;
-            font-size: 14px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
+        .error.maximized {
+            height: calc(100% - 40px);
         }
         .controls {
             max-width: 100%;
@@ -158,18 +133,6 @@
             margin-top: 5px;
             display: none;
         }
-        .download-status {
-            max-width: 600px;
-            margin: 10px auto;
-            padding: 8px;
-            font-size: 14px;
-            color: #333;
-            background-color: #e9ecef;
-            border-radius: 4px;
-            max-height: 100px;
-            overflow-y: auto;
-            display: none;
-        }
     </style>
 </head>
 <body>
@@ -177,12 +140,8 @@
         <textarea id="cameraInput" placeholder='Paste your camera URLs as a JSON array, e.g. ["http://example1:80", "http://example2:81"]'></textarea>
         <div>
             <button id="submitButton">Submit Cameras</button>
-            <button id="downloadAllButton" class="download-all-btn" style="display: none;">Download All</button>
-            <button id="generateUrlsButton" class="generate-urls-btn" style="display: none;">Generate URL List</button>
-            <input type="number" id="startPageInput" class="start-page-input" placeholder="Start page" min="1" style="display: none;">
         </div>
         <div id="errorMessage" class="error-message">Invalid input. Please provide a valid JSON array of URLs.</div>
-        <div id="downloadStatus" class="download-status"></div>
     </div>
     <div class="controls">
         <button id="loadButton" style="display: none;">Load Cameras</button>
@@ -202,11 +161,7 @@
         const loadButton = document.getElementById('loadButton');
         const cameraInput = document.getElementById('cameraInput');
         const submitButton = document.getElementById('submitButton');
-        const downloadAllButton = document.getElementById('downloadAllButton');
-        const generateUrlsButton = document.getElementById('generateUrlsButton');
-        const startPageInput = document.getElementById('startPageInput');
         const errorMessage = document.getElementById('errorMessage');
-        const downloadStatus = document.getElementById('downloadStatus');
 
         // Load saved data on page load
         function loadSavedData() {
@@ -220,9 +175,6 @@
                         camUrls = parsedUrls;
                         cameraInput.value = JSON.stringify(camUrls);
                         loadButton.style.display = 'inline-block';
-                        downloadAllButton.style.display = 'inline-block';
-                        generateUrlsButton.style.display = 'inline-block';
-                        startPageInput.style.display = 'inline-block';
                         renderPagination();
                     } else {
                         localStorage.removeItem('cameraUrls');
@@ -275,6 +227,12 @@
                            url.toLowerCase().endsWith('.bmp') ||
                            url.toLowerCase().endsWith('.webp');
 
+            // Check if the URL is an SWF or FLV file
+            const isSwfOrFlv = url.toLowerCase().endsWith('.swf') || url.toLowerCase().endsWith('.flv');
+
+            // Check if the URL is an MP4 file
+            const isMp4 = url.toLowerCase().endsWith('.mp4');
+
             if (isImage) {
                 const img = document.createElement('img');
                 img.className = 'cam-image';
@@ -284,32 +242,44 @@
                     img.remove();
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'error';
-                    errorDiv.textContent = 'Failed to load camera image. Right-click the URL above to download manually.';
+                    errorDiv.textContent = 'Failed to load camera image.';
                     camDiv.appendChild(errorDiv);
                 };
                 camDiv.appendChild(img);
-
-                // Add a download button for images
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'download-btn';
-                downloadBtn.textContent = 'Download';
-                downloadBtn.onclick = () => {
-                    const filename = url.split('/').pop() || 'image.jpg';
-                    triggerDownload(url, filename);
+            } else if (isMp4) {
+                const video = document.createElement('video');
+                video.className = 'cam-video';
+                video.autoplay = true;
+                video.muted = true;
+                video.controls = true; // Optional: Add controls for user interaction
+                video.setAttribute('playsinline', ''); // Ensure inline playback on mobile
+                const source = document.createElement('source');
+                source.src = url;
+                source.type = 'video/mp4';
+                video.appendChild(source);
+                video.onerror = () => {
+                    video.remove();
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error';
+                    errorDiv.textContent = 'Failed to load MP4 video. Ensure the URL is accessible and the file format is supported.';
+                    camDiv.appendChild(errorDiv);
                 };
-                camDiv.appendChild(downloadBtn);
+                camDiv.appendChild(video);
             } else {
-                // Try to load as an iframe (for potential live feeds)
+                // Load as an iframe (for live feeds, SWF, or FLV files)
                 const iframe = document.createElement('iframe');
                 iframe.className = 'cam-frame';
                 iframe.src = url;
                 iframe.title = `Camera at ${url}`;
                 iframe.onerror = () => {
                     iframe.remove();
-                    // If iframe fails, show a message
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'error';
-                    errorDiv.textContent = 'Failed to load camera feed. Right-click the URL above to download manually.';
+                    if (isSwfOrFlv) {
+                        errorDiv.textContent = 'Failed to load SWF/FLV file. Playback may require a browser with Flash support (e.g., an older browser) or a third-party player.';
+                    } else {
+                        errorDiv.textContent = 'Failed to load camera feed.';
+                    }
                     camDiv.appendChild(errorDiv);
                 };
                 camDiv.appendChild(iframe);
@@ -331,7 +301,8 @@
             camDiv.classList.add('maximized');
             const camFrame = camDiv.querySelector('.cam-frame') ||
                            camDiv.querySelector('.cam-image') ||
-                           camDiv.querySelector('.download-container');
+                           camDiv.querySelector('.cam-video') ||
+                           camDiv.querySelector('.error');
             if (camFrame) camFrame.classList.add('maximized');
             camDiv.querySelector('.maximize-btn').style.display = 'none';
             camDiv.querySelector('.restore-btn').style.display = 'inline-block';
@@ -352,7 +323,8 @@
             maximizedCam.classList.remove('maximized');
             const camFrame = maximizedCam.querySelector('.cam-frame') ||
                            maximizedCam.querySelector('.cam-image') ||
-                           camDiv.querySelector('.download-container');
+                           maximizedCam.querySelector('.cam-video') ||
+                           maximizedCam.querySelector('.error');
             if (camFrame) camFrame.classList.remove('maximized');
             maximizedCam.querySelector('.maximize-btn').style.display = 'inline-block';
             maximizedCam.querySelector('.restore-btn').style.display = 'none';
@@ -459,110 +431,6 @@
             pagination.appendChild(nextButton2);
         }
 
-        // Function to trigger a download using the image URL
-        function triggerDownload(url, filename) {
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-
-        // Function to download all images starting from the specified page
-        async function downloadAllImages(urls) {
-            const startPage = parseInt(startPageInput.value) || 1;
-            const totalPages = Math.ceil(urls.length / camsPerPage);
-            const batchSize = 5; // Number of files to download at a time
-
-            // Validate the start page
-            if (startPage < 1 || startPage > totalPages) {
-                downloadStatus.style.display = 'block';
-                downloadStatus.innerHTML = `Invalid start page. Please enter a number between 1 and ${totalPages}.<br>`;
-                return;
-            }
-
-            // Calculate the starting index based on the page
-            const startIndex = (startPage - 1) * camsPerPage;
-
-            downloadStatus.style.display = 'block';
-            downloadStatus.innerHTML = `Starting downloads from page ${startPage}...<br>`;
-            downloadStatus.innerHTML += `Note: If downloads do not start, right-click the images and select "Save Image As" to download manually.<br>`;
-
-            for (let i = startIndex; i < urls.length; i += batchSize) {
-                const batch = urls.slice(i, i + batchSize);
-
-                for (const [batchIndex, url] of batch.entries()) {
-                    const globalIndex = i + batchIndex;
-                    const filename = url.split('/').pop() || `image_${globalIndex}.jpg`;
-
-                    // Check if the URL is an image
-                    const isImage = url.toLowerCase().endsWith('.jpg') ||
-                                   url.toLowerCase().endsWith('.jpeg') ||
-                                   url.toLowerCase().endsWith('.png') ||
-                                   url.toLowerCase().endsWith('.gif') ||
-                                   url.toLowerCase().endsWith('.bmp') ||
-                                   url.toLowerCase().endsWith('.webp');
-
-                    if (!isImage) {
-                        downloadStatus.innerHTML += `Skipping ${filename}: Not a displayable image format.<br>`;
-                        continue;
-                    }
-
-                    downloadStatus.innerHTML += `Initiating download for ${filename}...<br>`;
-                    triggerDownload(url, filename);
-                    downloadStatus.scrollTop = downloadStatus.scrollHeight;
-
-                    // Small delay between individual downloads in a batch
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-
-                // Wait 5 seconds between batches to allow the browser to handle downloads
-                await new Promise(resolve => setTimeout(resolve, 5000));
-            }
-
-            downloadStatus.innerHTML += 'All downloads initiated. Check your browser\'s download manager for progress.<br>';
-            downloadStatus.scrollTop = downloadStatus.scrollHeight;
-        }
-
-        // Function to generate a text file with URLs starting from the specified page
-        function generateUrlList(urls) {
-            const startPage = parseInt(startPageInput.value) || 1;
-            const totalPages = Math.ceil(urls.length / camsPerPage);
-
-            // Validate the start page
-            if (startPage < 1 || startPage > totalPages) {
-                downloadStatus.style.display = 'block';
-                downloadStatus.innerHTML = `Invalid start page. Please enter a number between 1 and ${totalPages}.<br>`;
-                return;
-            }
-
-            // Calculate the starting index based on the page
-            const startIndex = (startPage - 1) * camsPerPage;
-            const urlsToDownload = urls.slice(startIndex);
-
-            // Create a text blob with the URLs
-            const urlText = urlsToDownload.join('\n');
-            const blob = new Blob([urlText], { type: 'text/plain' });
-            const url = window.URL.createObjectURL(blob);
-
-            // Create a link to download the text file
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `camera_urls_from_page_${startPage}.txt`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            window.URL.revokeObjectURL(url);
-
-            // Update status message
-            downloadStatus.style.display = 'block';
-            downloadStatus.innerHTML = `URL list generated as "camera_urls_from_page_${startPage}.txt".<br>`;
-            downloadStatus.innerHTML += `Use a download manager with the generated URL list.<br>`;
-            downloadStatus.innerHTML += `For example, with wget: <code>wget -i camera_urls_from_page_${startPage}.txt</code><br>`;
-            downloadStatus.scrollTop = downloadStatus.scrollHeight;
-        }
-
         submitButton.onclick = () => {
             try {
                 const input = cameraInput.value.trim();
@@ -570,10 +438,6 @@
                     errorMessage.style.display = 'block';
                     localStorage.removeItem('cameraUrls');
                     camUrls = [];
-                    downloadAllButton.style.display = 'none';
-                    generateUrlsButton.style.display = 'none';
-                    startPageInput.style.display = 'none';
-                    downloadStatus.style.display = 'none';
                     return;
                 }
                 const parsedUrls = JSON.parse(input);
@@ -584,10 +448,6 @@
                 localStorage.setItem('cameraUrls', JSON.stringify(camUrls));
                 errorMessage.style.display = 'none';
                 loadButton.style.display = 'inline-block';
-                downloadAllButton.style.display = 'inline-block';
-                generateUrlsButton.style.display = 'inline-block';
-                startPageInput.style.display = 'inline-block';
-                downloadStatus.style.display = 'none';
                 currentPage = 1;
                 localStorage.setItem('currentPage', currentPage);
                 isLoaded = false;
@@ -598,22 +458,6 @@
                 errorMessage.style.display = 'block';
                 localStorage.removeItem('cameraUrls');
                 camUrls = [];
-                downloadAllButton.style.display = 'none';
-                generateUrlsButton.style.display = 'none';
-                startPageInput.style.display = 'none';
-                downloadStatus.style.display = 'none';
-            }
-        };
-
-        downloadAllButton.onclick = () => {
-            if (camUrls.length > 0) {
-                downloadAllImages(camUrls);
-            }
-        };
-
-        generateUrlsButton.onclick = () => {
-            if (camUrls.length > 0) {
-                generateUrlList(camUrls);
             }
         };
 
