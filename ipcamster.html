@@ -271,6 +271,9 @@
             // Check if the URL is a .doc file
             const isDoc = url.toLowerCase().endsWith('.doc');
 
+            // Check if the URL is a Google Drive link
+            const isGoogleDrive = url.toLowerCase().includes('drive.google.com');
+
             if (isImage) {
                 const img = document.createElement('img');
                 img.className = 'cam-image';
@@ -304,30 +307,47 @@
                 };
                 camDiv.appendChild(video);
             } else if (isDoc) {
-                // Use Google Docs Viewer to preview .doc files
-                const iframe = document.createElement('iframe');
-                iframe.className = 'cam-doc';
-                const encodedUrl = encodeURIComponent(url);
-                iframe.src = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
-                iframe.title = `Document at ${url}`;
-                iframe.onerror = () => {
-                    iframe.remove();
+                if (isGoogleDrive) {
+                    // For Google Drive links, only provide a download button
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'error';
-                    errorDiv.textContent = 'Failed to preview .doc file. The file may not be publicly accessible, or the preview service is unavailable.';
+                    errorDiv.textContent = 'Google Drive files cannot be previewed directly. Please download the file.';
                     camDiv.appendChild(errorDiv);
-                };
-                camDiv.appendChild(iframe);
 
-                // Add a download button for .doc files
-                const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'download-btn';
-                downloadBtn.textContent = 'Download';
-                downloadBtn.onclick = () => {
-                    const filename = url.split('/').pop() || 'document.doc';
-                    triggerDownload(url, filename);
-                };
-                camDiv.appendChild(downloadBtn);
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'download-btn';
+                    downloadBtn.textContent = 'Download';
+                    downloadBtn.onclick = () => {
+                        const filename = url.split('/').pop() || 'document.doc';
+                        triggerDownload(url, filename);
+                    };
+                    camDiv.appendChild(downloadBtn);
+                } else {
+                    // Use Google Docs Viewer to preview .doc files
+                    const iframe = document.createElement('iframe');
+                    iframe.className = 'cam-doc';
+                    const encodedUrl = encodeURIComponent(url);
+                    iframe.src = `https://docs.google.com/viewer?url=${encodedUrl}&embedded=true`;
+                    iframe.title = `Document at ${url}`;
+                    iframe.onerror = () => {
+                        iframe.remove();
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error';
+                        errorDiv.textContent = 'Failed to preview .doc file. The file may not be publicly accessible, or the preview service is unavailable.';
+                        camDiv.appendChild(errorDiv);
+                    };
+                    camDiv.appendChild(iframe);
+
+                    // Add a download button for .doc files
+                    const downloadBtn = document.createElement('button');
+                    downloadBtn.className = 'download-btn';
+                    downloadBtn.textContent = 'Download';
+                    downloadBtn.onclick = () => {
+                        const filename = url.split('/').pop() || 'document.doc';
+                        triggerDownload(url, filename);
+                    };
+                    camDiv.appendChild(downloadBtn);
+                }
             } else {
                 // Load as an iframe (for live feeds, SWF, or FLV files)
                 const iframe = document.createElement('iframe');
